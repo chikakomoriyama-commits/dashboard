@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>My Workspace</title>
 <meta name="theme-color" content="#FAF7F0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%237A6240'/%3E%3Ctext%20x='32'%20y='45'%20font-family='Georgia,serif'%20font-size='38'%20font-weight='500'%20fill='%23FAF7F0'%20text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -112,6 +114,20 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  .tab .due {
+    display: inline-block;
+    min-width: 17px;
+    padding: 0 4px;
+    margin-left: 6px;
+    border-radius: 999px;
+    background: #A8432F;
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    vertical-align: 1px;
+  }
   .tabspacer { flex: 1; }
   .tools {
     display: flex;
@@ -207,6 +223,7 @@
     { id: 'draft',   label: '申込み返信ドラフト',   url: 'https://chikakomoriyama-commits.github.io/draft-tool/' },
     { id: 'journey', label: '顧客ジャーニー台帳',   url: 'https://chikakomoriyama-commits.github.io/rfc-journey/journey-tool.html' },
     { id: 'creating', label: 'Creating Board',      url: 'https://chikakomoriyama-commits.github.io/creating-board/' },
+    { id: 'routines', label: '定期リマインダー',     url: 'https://chikakomoriyama-commits.github.io/routines/' },
     /* 例: { id: 'newtool', label: '新しいツール', url: 'https://chikakomoriyama-commits.github.io/new-tool/' }, */
   ];
 
@@ -269,7 +286,35 @@
       stage.appendChild(f);
     }
     stage.querySelectorAll('iframe').forEach(x => x.classList.toggle('on', x.id === 'frame-' + id));
+    updateDueBadge();
   }
+
+  /* ===== 定期リマインダーの期限バッジ(タブに赤丸で件数表示) ===== */
+  async function updateDueBadge() {
+    if (!sb || !signedIn) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const d = new Date();
+      const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const { count, error } = await sb.from('routines')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .lte('next_due', today);
+      if (error) return;
+      const tab = document.getElementById('tab-routines');
+      if (!tab) return;
+      let b = tab.querySelector('.due');
+      if (count > 0) {
+        if (!b) { b = document.createElement('span'); b.className = 'due'; tab.appendChild(b); }
+        b.textContent = count;
+      } else if (b) {
+        b.remove();
+      }
+    } catch (e) {}
+  }
+  setInterval(updateDueBadge, 30 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateDueBadge(); });
 
   function reloadActive() {
     const f = document.getElementById('frame-' + active);
