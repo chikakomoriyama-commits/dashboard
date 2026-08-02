@@ -147,6 +147,42 @@
   .tools button:hover { color: var(--accent); background: rgba(122, 98, 64, 0.08); }
   .tools svg { width: 16px; height: 16px; }
 
+  /* ===== リンク一覧パネル ===== */
+  #linksPanel {
+    position: absolute;
+    top: calc(var(--header-h) + var(--tabs-h) + 8px);
+    right: 12px;
+    width: min(92vw, 440px);
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(30, 24, 10, 0.14);
+    padding: 14px 18px;
+    display: none;
+    z-index: 30;
+  }
+  #linksPanel.show { display: block; }
+  #linksPanel h3 {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .linkrow { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
+  .linkrow:last-child { border-bottom: none; }
+  .linkrow .nm { font-size: 13px; font-weight: 500; }
+  .linkrow a {
+    font-size: 11px;
+    color: var(--accent);
+    word-break: break-all;
+    text-decoration: none;
+    line-height: 1.5;
+  }
+  .linkrow a:hover { text-decoration: underline; }
+
   /* ===== モジュール表示エリア ===== */
   main { flex: 1; position: relative; background: var(--paper); }
   main iframe {
@@ -225,6 +261,7 @@
     { id: 'creating', label: 'Creating Board',      url: 'https://chikakomoriyama-commits.github.io/creating-board/' },
     { id: 'routines', label: '定期リマインダー',     url: 'https://chikakomoriyama-commits.github.io/routines/' },
     { id: 'tension',  label: '緊張構造チャート',     url: 'https://chikakomoriyama-commits.github.io/tension-chart/' },
+    { id: 'expenses', label: '経費・売上管理',       url: 'https://script.google.com/macros/s/AKfycbzEVkX0jfW9xl57uDl5BAH4l1950HfLUzagFtSBMwf4rHKG9zIfdTROe7dkXq_5K0lFxA/exec' },
     /* 例: { id: 'newtool', label: '新しいツール', url: 'https://chikakomoriyama-commits.github.io/new-tool/' }, */
   ];
 
@@ -260,6 +297,9 @@
   const tools = document.createElement('div');
   tools.className = 'tools';
   tools.innerHTML =
+    '<button title="全ツールのリンク一覧" aria-label="リンク一覧" onclick="toggleLinks(event)">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>' +
+    '</button>' +
     '<button title="このモジュールを再読み込み" aria-label="再読み込み" onclick="reloadActive()">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>' +
     '</button>' +
@@ -316,6 +356,23 @@
   }
   setInterval(updateDueBadge, 30 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) updateDueBadge(); });
+
+  /* ===== リンク一覧パネル(モジュールリストから自動生成) ===== */
+  const linksPanel = document.createElement('div');
+  linksPanel.id = 'linksPanel';
+  linksPanel.innerHTML = '<h3>各ツールのオリジナルURL</h3>' + MODULES.map(m =>
+    '<div class="linkrow"><div class="nm">' + m.label + '</div>' +
+    '<a href="' + m.url + '" target="_blank" rel="noopener">' + m.url + '</a></div>'
+  ).join('');
+  document.body.appendChild(linksPanel);
+
+  function toggleLinks(e) {
+    e.stopPropagation();
+    linksPanel.classList.toggle('show');
+  }
+  document.addEventListener('click', (e) => {
+    if (!linksPanel.contains(e.target)) linksPanel.classList.remove('show');
+  });
 
   function reloadActive() {
     const f = document.getElementById('frame-' + active);
