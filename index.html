@@ -253,6 +253,9 @@
        id    : 半角英数のユニークな名前
        label : タブに表示する名前
        url   : ツールのURL(同じ github.io 上に置くとログインが共有されます)
+       external : true にすると埋め込まず新しいタブで開く
+                  (Creating RoomのようにGoogleログインが必要なアプリは
+                   iframeの中ではログインできないため)
      ========================================================= */
   const MODULES = [
     { id: 'tasks',   label: 'My Tasks',           url: 'https://chikakomoriyama-commits.github.io/my-tasks/' },
@@ -262,7 +265,7 @@
     { id: 'routines', label: '定期リマインダー',     url: 'https://chikakomoriyama-commits.github.io/routines/' },
     { id: 'tension',  label: '緊張構造チャート',     url: 'https://chikakomoriyama-commits.github.io/tension-chart/' },
     { id: 'expenses', label: '経費・売上管理',       url: 'https://script.google.com/macros/s/AKfycbzEVkX0jfW9xl57uDl5BAH4l1950HfLUzagFtSBMwf4rHKG9zIfdTROe7dkXq_5K0lFxA/exec' },
-    { id: 'croom',    label: 'Creating Room',        url: 'https://robertfritzjapan.github.io/creating-room/' },
+    { id: 'croom',    label: 'Creating Room ↗',      url: 'https://robertfritzjapan.github.io/creating-room/', external: true },
     /* 例: { id: 'newtool', label: '新しいツール', url: 'https://chikakomoriyama-commits.github.io/new-tool/' }, */
   ];
 
@@ -288,7 +291,7 @@
     b.className = 'tab';
     b.id = 'tab-' + m.id;
     b.textContent = m.label;
-    b.onclick = () => show(m.id);
+    b.onclick = () => m.external ? window.open(m.url, '_blank') : show(m.id);
     tabsEl.appendChild(b);
   });
   const spacer = document.createElement('div');
