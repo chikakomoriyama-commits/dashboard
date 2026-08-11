@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Workspace 管理</title>
+<meta name="theme-color" content="#FAF7F0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%237A6240'/%3E%3Ctext%20x='32'%20y='45'%20font-family='Georgia,serif'%20font-size='38'%20font-weight='500'%20fill='%23FAF7F0'%20text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #FAF7F0; --ink: #1A1810; --muted: #6A6455; --accent: #7A6240;
+    --paper: #FFFDF6; --hairline: rgba(60,50,30,0.18); --hairline-strong: rgba(60,50,30,0.35);
+  }
+  body { font-family: 'Zen Kaku Gothic New', sans-serif; background: var(--bg); color: var(--ink); padding: 24px; -webkit-font-smoothing: antialiased; }
+  h1 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  h1 span { color: var(--accent); }
+  .sub { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; }
+  .card { background: var(--paper); border: 1px solid var(--hairline); border-radius: 12px; padding: 16px; overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); text-align: left; white-space: nowrap; }
+  th { font-size: 11px; color: var(--muted); font-weight: 700; }
+  th.mod { writing-mode: initial; font-weight: 500; }
+  td.email { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  td.center, th.center { text-align: center; }
+  input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+  .pill { display: inline-block; font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: rgba(122,98,64,.12); color: var(--accent); }
+  .row-dim td { color: #b3ad9d; }
+  .addbox { display: flex; gap: 8px; margin-top: 12px; }
+  .addbox input[type=email] { flex: 1; max-width: 340px; font-family: inherit; font-size: 13px; padding: 8px 12px; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--paper); }
+  button.btn { font-family: inherit; font-size: 12.5px; padding: 8px 18px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: var(--paper); cursor: pointer; }
+  button.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 500; }
+  button.btn:hover { opacity: .85; }
+  #msg { margin: 16px 0; font-size: 13px; color: var(--muted); }
+  .del { color: #A8432F; cursor: pointer; font-size: 11px; background: none; border: none; }
+  a.back { font-size: 12px; color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<h1>My <span>Workspace</span> 管理</h1>
+<div class="sub"><a class="back" href="./">← ハブに戻る</a></div>
+<div id="msg">読み込み中…</div>
+<div id="app" style="display:none">
+
+  <h2>ユーザー × モジュール（チェック = 使える）</h2>
+  <div class="card"><table id="grid"></table></div>
+
+  <h2>招待リスト（初回ログイン時に自動承認されるメールアドレス）</h2>
+  <div class="card">
+    <table id="invites"></table>
+    <div class="addbox">
+      <input type="email" id="invEmail" placeholder="new.member@gmail.com">
+      <button class="btn primary" onclick="addInvite()">招待に追加</button>
+    </div>
+  </div>
+
+</div>
+<script>
+const sb = window.supabase.createClient(
+  'https://kzzdsibwjvocbihfqtlv.supabase.co',
+  'sb_publishable_n2qWIOJzVfrzjYANDe4UzA_O4dLVmZ1',
+  { auth: { persistSession: true, autoRefreshToken: true } }
+);
+const msg = document.getElementById('msg');
+let ME=null, PROFILES=[], MODS=[], GRANTS=[], INVITES=[];
+
+async function boot(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session){ msg.textContent = 'ログインが必要です。ハブでログインしてから開いてください。'; return; }
+  ME = session.user;
+  const { data: me } = await sb.from('profiles').select('role').eq('id', ME.id).maybeSingle();
+  if(!me || me.role !== 'owner'){ msg.textContent = 'この画面は管理者専用です。'; return; }
+  await reload();
+}
+async function reload(){
+  const [p, m, g, i] = await Promise.all([
+    sb.from('profiles').select('id,email,display_name,role,is_approved').order('email'),
+    sb.from('modules').select('key,name,sort_order,is_active').order('sort_order'),
+    sb.from('user_modules').select('user_id,module_key'),
+    sb.from('invited_emails').select('email,invited_at').order('email'),
+  ]);
+  for(const r of [p,m,g,i]) if(r.error){ msg.textContent='読み込みエラー: '+r.error.message; return; }
+  PROFILES=p.data; MODS=m.data; GRANTS=g.data; INVITES=i.data;
+  render();
+  msg.textContent='';
+  document.getElementById('app').style.display='';
+}
+function has(uid,key){ return GRANTS.some(x=>x.user_id===uid && x.module_key===key); }
+
+function render(){
+  const t=document.getElementById('grid');
+  let h='<tr><th>ユーザー</th><th class="center">承認</th>'+MODS.map(m=>'<th class="center mod">'+m.name+'</th>').join('')+'</tr>';
+  // 承認済みを上に、未承認をまとめて下に
+  const sorted=[...PROFILES].sort((a,b)=>(b.is_approved?1:0)-(a.is_approved?1:0) || (a.email||'').localeCompare(b.email||''));
+  sorted.forEach(p=>{
+    h+='<tr class="'+(p.is_approved?'':'row-dim')+'"><td class="email">'+(p.email||'')
+      +(p.role==='owner'?' <span class="pill">owner</span>':'')+'</td>';
+    h+='<td class="center"><input type="checkbox" '+(p.is_approved?'checked':'')
+      +(p.role==='owner'?' disabled':'')+' onchange="setApproved(\''+p.id+'\',this.checked)"></td>';
+    MODS.forEach(m=>{
+      h+='<td class="center"><input type="checkbox" '+(has(p.id,m.key)?'checked':'')
+        +' onchange="setGrant(\''+p.id+'\',\''+m.key+'\',this.checked)"></td>';
+    });
+    h+='</tr>';
+  });
+  t.innerHTML=h;
+
+  const inv=document.getElementById('invites');
+  inv.innerHTML='<tr><th>メールアドレス</th><th>登録日</th><th></th></tr>'+INVITES.map(x=>
+    '<tr><td>'+x.email+'</td><td>'+(x.invited_at||'').slice(0,10)+'</td>'+
+    '<td><button class="del" onclick="delInvite(\''+x.email+'\')">削除</button></td></tr>').join('');
+}
+async function setApproved(uid,val){
+  const { error } = await sb.from('profiles').update({ is_approved: val }).eq('id', uid);
+  if(error){ alert('変更できませんでした: '+error.message); }
+  await reload();
+}
+async function setGrant(uid,key,val){
+  const q = val
+    ? await sb.from('user_modules').insert({ user_id: uid, module_key: key, granted_by: ME.id })
+    : await sb.from('user_modules').delete().eq('user_id', uid).eq('module_key', key);
+  if(q.error){ alert('変更できませんでした: '+q.error.message); }
+  await reload();
+}
+async function addInvite(){
+  const em=document.getElementById('invEmail').value.trim().toLowerCase();
+  if(!em || !em.includes('@')){ alert('メールアドレスを入力してください'); return; }
+  const { error } = await sb.from('invited_emails').insert({ email: em });
+  if(error){ alert('追加できませんでした: '+error.message); }
+  document.getElementById('invEmail').value='';
+  await reload();
+}
+async function delInvite(em){
+  const { error } = await sb.from('invited_emails').delete().eq('email', em);
+  if(error){ alert('削除できませんでした: '+error.message); }
+  await reload();
+}
+boot();
+</script>
+</body>
+</html>
